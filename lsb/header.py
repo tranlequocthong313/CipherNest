@@ -3,7 +3,7 @@ import threading
 from .file import File
 
 
-#    The structure of an LSB Embedded file header
+#    The structure of an Embedded File Header
 ######################################################
 #        Magic String       #         Version        #
 ######################################################
@@ -11,16 +11,22 @@ from .file import File
 ######################################################
 # Magic String: Used to identify the embedded file.
 # Version: Version of the application.
-# Quality: Embedding quality level (1 bit, 2 bits, 4 bits).
-# Number of Files: The number of secret files embedded.
 # File Metadata: Information for the secret files.
 #   Filenames: Names and extensions of the files.
 #   Embedded Sizes: Sizes of the embedded secret files.
 class LsbHeader:
     class Props:
-        def __init__(self, secret_files: File, quality="medium") -> None:
+        def __init__(
+            self,
+            secret_files: File,
+            quality: str = "medium",
+            compressed: bool = False,
+            passphrase: str = None,
+        ) -> None:
             self.secret_files = secret_files
             self.quality = quality
+            self.compressed = compressed
+            self.passphrase = passphrase
 
     def __init__(
         self,
@@ -40,22 +46,22 @@ class LsbHeader:
     def make_header(self, props: Props) -> str:
         quality = props.quality
         secret_files = props.secret_files
+        compressed = props.compressed
+        passphrase = props.passphrase
 
         if quality not in self.qualities:
-            raise Exception(f"Invalid quality {quality}")
+            raise ValueError(f"Invalid quality {quality}")
 
-        # Convert file metadata to byte representation
         filenames_bytes = File.filenames(secret_files).encode()
         file_sizes_bytes = File.embedded_size_str(
-            files=secret_files, num_bits=self.qualities[quality]
+            files=secret_files,
+            num_bits=self.qualities[quality],
+            compressed=compressed,
+            passphrase=passphrase,
         ).encode()
-        print(quality, "HEADER:::", file_sizes_bytes)
 
         # Build the header blocks
-        header_blocks = []
-
-        # Add MAGIC_STRING block
-        header_blocks.append(self.MAGIC_STRING)
+        header_blocks = [self.MAGIC_STRING]
 
         # Add VERSION block
         version_block = (
@@ -79,8 +85,8 @@ class LsbHeader:
 
         return b"".join(header_blocks)
 
-    def extract_magic_string(self, samples: List[int]) -> str:
-        results = {"low": False, "medium": False, "high": False}
+    def get_quality_from_embedded_data(self, samples: List[int]) -> str:
+        results = {key: False for key in self.qualities}
         threads = [
             threading.Thread(
                 target=self._extract_magic_string, args=(samples, results, key)
@@ -91,7 +97,7 @@ class LsbHeader:
             thread.start()
         for thread in threads:
             thread.join()
-        for quality in ["low", "medium", "high"]:
+        for quality in list(self.qualities.keys()):
             if results[quality]:
                 return quality
         raise ValueError("Data is not embedded by the system")
@@ -107,17 +113,15 @@ class LsbHeader:
             extracted_bits = samples[i] & ((1 << lsb) - 1)
             bits += format(extracted_bits, f"0{lsb}b")
 
-        magic_string = ""
-        for i in range(0, len(bits), 8):
-            byte = bits[i : i + 8]
-            magic_string += chr(int(byte, 2))
-
+        magic_string = "".join(
+            chr(int(bits[i : i + 8], 2)) for i in range(0, len(bits), 8)
+        )
         if magic_string.encode() == self.MAGIC_STRING:
             results[quality] = True
 
     def extract_header_blocks(self, samples: List[int], quality: str, start_index: int):
         blocks = {}
-        total_blocks = 3  # Số lượng blocks mà bạn muốn trích xuất
+        total_blocks = 3
         block_names = ["VERSION", "FILENAMES", "EMBEDDED_SIZES"]
         index = start_index
 
@@ -141,7 +145,6 @@ class LsbHeader:
         content_start_index = 0
         length = 0
 
-        # 1. Đọc và trích xuất length
         for i in range(index, len(samples)):
             extracted_bits = samples[i] & ((1 << lsb) - 1)
             bits += format(extracted_bits, f"0{lsb}b")
@@ -156,21 +159,21 @@ class LsbHeader:
                     content_start_index = i + 1
                     break
 
-        # 3. Đọc và trích xuất content dựa trên length đã tìm được
-        content_bits = ""
+        bits = []
         length = length * 8 // lsb
         for i in range(content_start_index, content_start_index + length):
             extracted_bits = samples[i] & ((1 << lsb) - 1)
-            content_bits += format(extracted_bits, f"0{lsb}b")
+            bits.append(format(extracted_bits, f"0{lsb}b"))
 
-        block_content = ""
-        for i in range(0, len(content_bits), 8):
-            byte = content_bits[i : i + 8]
-            block_content += chr(int(byte, 2))
+        bits_str = "".join(bits)
 
-        blocks[block_names[len(blocks)]] = block_content
+        data_bytes = bytearray()
+        for i in range(0, len(bits_str), 8):
+            byte = bits_str[i : i + 8]
+            data_bytes.append(int(byte, 2))
 
-        # Trả về chỉ mục tiếp theo sau khi đã xử lý xong block hiện tại
+        blocks[block_names[len(blocks)]] = data_bytes.decode("utf-8")
+
         return content_start_index + length
 
     def magic_str_index(self, quality: str) -> int:

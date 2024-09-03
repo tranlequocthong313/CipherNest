@@ -1,8 +1,7 @@
 import os
 from typing import List
-import wave
-from .utils.codec import CoDec
-from .utils.endec import EnDec
+from utils.codec import CoDec
+from utils.endec import EnDec
 
 codec = CoDec()
 endec = EnDec()
@@ -17,14 +16,6 @@ class File:
         if path:
             self.name = os.path.basename(path)
             self.size = os.path.getsize(path)
-            # if "wav" in path:
-            #     with wave.open(path, "rb") as file:
-            #         nframes = file.getnframes()
-            #         frames = file.readframes(nframes)
-            #         frame_list = list(frames)
-            #         self.raw_data = frame_list
-            #         self.params = file.getparams()
-            # else:
             with open(path, "rb") as file:
                 self.raw_data = file.read()
         elif name and size is not None and data is not None:
@@ -65,17 +56,18 @@ class File:
 
     @staticmethod
     def embedded_size_str(
-        files: List["File"], num_bits: int = 2, delimiter: str = "/"
+        files: List["File"],
+        num_bits: int = 2,
+        delimiter: str = "/",
+        compressed=False,
+        passphrase: str = None,
     ) -> List[str]:
-        # bits = 8
-        # sizes = [str(file.size * bits // num_bits) for file in files]
         sizes = [
             str(
-                File.proc_estimate_embedded_size_after_encrypting(
-                    # file.compressed_size, num_bits
-                    "2525",
-                    file.compressed_data,
-                    num_bits,
+                File.proc_estimate_embedded_size(
+                    passphrase=passphrase,
+                    data=file.compressed_data if compressed else file.raw_data,
+                    num_bits=num_bits,
                 )
             )
             for file in files
@@ -99,70 +91,68 @@ class File:
         return [int(size) for size in sizesStr.split(delimiter)]
 
     @staticmethod
-    def embeddable(files: List["File"], free_space: int, num_bits: int = 2) -> bool:
-        for file in files:
-            # if file.embedded_size(num_bits) > free_space:
-            if file.estimate_embedded_size_after_encrypting(num_bits) > free_space:
-                return False
-        return True
+    def embeddable(
+        files: List["File"],
+        free_space: int,
+        num_bits: int = 2,
+        compressed: bool = False,
+        passphrase: str = None,
+    ) -> bool:
+        return all(
+            file.estimate_embedded_size(
+                num_bits=num_bits, compressed=compressed, passphrase=passphrase
+            )
+            <= free_space
+            for file in files
+        )
 
     def embedded_size(self, num_bits: int = 2) -> int:
         bits = 8
         return self.size * (bits // num_bits)
 
     def encrypt(self, passphrase: str) -> bytes:
-        print("ENCRYPTED SIZE:::", len(endec.encrypt_data(passphrase, self.raw_data)))
         return endec.encrypt_data(passphrase, self.raw_data)
 
     def compress_encrypt(self, passphrase: str) -> bytes:
-        print(
-            "COMPRESSED_ENCRYPTED SIZE:::",
-            len(endec.encrypt_data(passphrase, self.compressed_data)),
-        )
         return endec.encrypt_data(passphrase, self.compressed_data)
 
     @staticmethod
     def decrypt(passphrase: str, encrypted_data: bytes) -> bytes:
-        print("DECRYPTED SIZE:::", len(endec.encrypt_data(passphrase, encrypted_data)))
         return endec.decrypt_data(passphrase, encrypted_data)
 
     @staticmethod
-    def decompress_decrypt(passphrase: str, encrypted_data: bytes) -> bytes:
-        decrypted_data = endec.decrypt_data(passphrase, encrypted_data)
-        print("DECRYPTED DATA:::", decrypted_data[:100])
+    def decompress_decrypt(passphrase: str, encrypted_compressed_data: bytes) -> bytes:
+        decrypted_data = endec.decrypt_data(passphrase, encrypted_compressed_data)
         decompress_data = codec.decompress_data(decrypted_data)
-        print(
-            "DECOMPRESS_DECRYPTED SIZE:::",
-            len(codec.decompress_data(decrypted_data)),
-        )
         return decompress_data
 
-    def estimate_embedded_size_after_encrypting(self, num_bits: int = 2) -> int:
-        print("ACTUAL_SIZE:::", self.compressed_size)
-        print(
-            "ESTIMATED_SIZE:::",
-            File.proc_estimate_embedded_size_after_encrypting(
-                # self.compressed_size, num_bits
-                "2525",
-                self.compressed_data,
-                num_bits,
-            ),
-        )
-        return File.proc_estimate_embedded_size_after_encrypting(
-            # self.compressed_size, num_bits
-            "2525",
-            self.compressed_data,
-            num_bits,
+    @staticmethod
+    def decompress(compressed_data: bytes) -> bytes:
+        decompress_data = codec.decompress_data(compressed_data)
+        return decompress_data
+
+    def estimate_embedded_size(
+        self, num_bits: int = 2, compressed: bool = False, passphrase: str = None
+    ) -> int:
+        return File.proc_estimate_embedded_size(
+            data=self.compressed_data if compressed else self.raw_data,
+            passphrase=passphrase,
+            num_bits=num_bits,
         )
 
     @staticmethod
-    def proc_estimate_embedded_size_after_encrypting(
-        # actual_size: int, num_bits: int = 2
-        passphrase,
+    def proc_estimate_embedded_size(
         data: bytes,
+        passphrase: str = None,
         num_bits: int = 2,
     ) -> int:
         bits = 8
-        # size = endec.estimate_encrypted_size(actual_size)
-        size = len(endec.encrypt_data(passphrase, data))
+        if passphrase:
+            size = endec.estimate_encrypted_size(data_length=len(data))
+        else:
+            size = len(data)
         return size * bits // num_bits
+
+    @staticmethod
+    def total_size(files: List["File"]) -> int:
+        return sum(file.size for file in files)

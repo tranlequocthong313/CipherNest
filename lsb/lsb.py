@@ -7,17 +7,12 @@ from .header import LsbHeader
 
 class LSBSteganography:
     def __init__(self):
-        self.qualities = {"low": 4, "medium": 2, "high": 1}
+        self.qualities = {"low": 4, "medium": 2, "high": 1, "very_low": 8}
         self.header = LsbHeader(
             magic_string="CipherNest",
             version="1.0",
             qualities=self.qualities,
             block_delimiter="BLK",
-        )
-
-    def make_header(self, secret_files: List[File], quality: str = "medium") -> str:
-        return self.header.make_header(
-            LsbHeader.Props(secret_files=secret_files, quality=quality)
         )
 
     def extract_header_blocks(
@@ -28,21 +23,77 @@ class LSBSteganography:
     def get_free_space(
         self,
         samples: List[int],
-        secret_files: List[File],
         quality: str = "medium",
+        compressed: bool = False,
+        passphrase: str = None,
     ) -> int:
         if quality not in self.qualities:
-            raise Exception(f"Invalid quality {quality}")
+            raise ValueError(f"Invalid quality {quality}")
         bits_per_sample = self.qualities[quality]
 
         total_samples = len(samples)
-        free_space = ((total_samples * bits_per_sample) // 8) - self.header.length(
-            LsbHeader.Props(secret_files=secret_files, quality=quality)
+        return ((total_samples * bits_per_sample) // 8) - self.header.length(
+            LsbHeader.Props(
+                secret_files=[],
+                quality=quality,
+                compressed=compressed,
+                passphrase=passphrase,
+            )
         )
-        return free_space
 
-    def is_embedded(self) -> bool:
-        pass
+    def get_free_space_left_with_header(
+        self,
+        samples: List[int],
+        secret_files: List[File],
+        quality: str = "medium",
+        compressed: bool = False,
+        passphrase: str = None,
+    ) -> int:
+        if quality not in self.qualities:
+            raise ValueError(f"Invalid quality {quality}")
+        bits_per_sample = self.qualities[quality]
+
+        total_samples = len(samples)
+        return ((total_samples * bits_per_sample) // 8) - self.header.length(
+            LsbHeader.Props(
+                secret_files=secret_files,
+                quality=quality,
+                compressed=compressed,
+                passphrase=passphrase,
+            )
+        )
+
+    def get_free_space_left_with_secret_files(
+        self,
+        samples: List[int],
+        secret_files: List[File],
+        quality: str = "medium",
+        compressed: bool = False,
+        passphrase: str = None,
+    ) -> int:
+        if quality not in self.qualities:
+            raise ValueError(f"Invalid quality {quality}")
+        bits_per_sample = self.qualities[quality]
+
+        total_samples = len(samples)
+        return (
+            ((total_samples * bits_per_sample) // 8)
+            - self.header.length(
+                LsbHeader.Props(
+                    secret_files=secret_files,
+                    quality=quality,
+                    compressed=compressed,
+                    passphrase=passphrase,
+                )
+            )
+            - File.total_size(files=secret_files)
+        )
+
+    def is_embedded(self, samples: List[int]) -> bool:
+        try:
+            return self.header.get_quality_from_embedded_data(samples) is not None
+        except ValueError:
+            return False
 
     def extract_secrets(self):
         pass
@@ -55,21 +106,45 @@ class LSBSteganography:
         samples: List[int],
         secret_files: List[bytes],
         quality: str = "medium",
+        compressed: bool = False,
+        passphrase: str = None,
     ) -> List[int]:
-        free_space = self.get_free_space(samples, secret_files, quality)
+        free_space = self.get_free_space_left_with_secret_files(
+            samples=samples,
+            secret_files=secret_files,
+            quality=quality,
+            compressed=compressed,
+            passphrase=passphrase,
+        )
         lsb = self.qualities[quality]
 
-        if not File.embeddable(secret_files, free_space, num_bits=lsb):
-            raise Exception("Not enough free space")
+        if not File.embeddable(
+            files=secret_files,
+            free_space=free_space,
+            num_bits=lsb,
+            compressed=compressed,
+            passphrase=passphrase,
+        ):
+            raise MemoryError("Not enough free space")
 
         header = self.header.make_header(
-            LsbHeader.Props(secret_files=secret_files, quality=quality)
+            LsbHeader.Props(
+                secret_files=secret_files,
+                quality=quality,
+                compressed=compressed,
+                passphrase=passphrase,
+            )
         )
 
         current_index = self.embed_data(samples, header, lsb, start_index=0)
 
         self.embed_data_singlethread(
-            samples, secret_files, lsb, start_index=current_index
+            samples=samples,
+            secret_files=secret_files,
+            lsb=lsb,
+            start_index=current_index,
+            compressed=compressed,
+            passphrase=passphrase,
         )
 
         return samples
@@ -94,7 +169,13 @@ class LSBSteganography:
         return end_index
 
     def embed_data_multithread(
-        self, samples: List[int], secret_files: List[bytes], lsb: int, start_index=0
+        self,
+        samples: List[int],
+        secret_files: List[bytes],
+        lsb: int,
+        start_index=0,
+        compressed: bool = False,
+        passphrase: str = None,
     ) -> int:
         num_threads = len(secret_files)
         thread_list = []
@@ -102,12 +183,10 @@ class LSBSteganography:
 
         def embed_part(thread_id, secret_file):
             part_start = start_index + thread_id * chunk_size
-            # self.embed_data(samples, secret_file.raw_data, lsb, start_index=part_start)
             self.embed_data(
-                samples,
-                # secret_file.encrypt(passphrase="2525"),
-                secret_file.compress_encrypt(passphrase="2525"),
-                lsb,
+                samples=samples,
+                data=self._get_data(secret_file, compressed, passphrase),
+                lsb=lsb,
                 start_index=part_start,
             )
 
@@ -127,27 +206,47 @@ class LSBSteganography:
         return start_index + chunk_size * num_threads
 
     def embed_data_singlethread(
-        self, samples: List[int], secret_files: List[bytes], lsb: int, start_index=0
+        self,
+        samples: List[int],
+        secret_files: List[bytes],
+        lsb: int,
+        start_index=0,
+        compressed: bool = False,
+        passphrase: str = None,
     ) -> int:
         start_time = time.time()  # Start timing
         for secret_file in secret_files:
-            # start_index = self.embed_data(
-            #     samples, secret_file.raw_data, lsb, start_index
-            # )
             start_index = self.embed_data(
-                # samples, secret_file.encrypt("2525"), lsb, start_index
-                samples,
-                secret_file.compress_encrypt("2525"),
-                lsb,
-                start_index,
+                samples=samples,
+                data=self._get_data(secret_file, compressed, passphrase),
+                lsb=lsb,
+                start_index=start_index,
             )
         end_time = time.time()  # End timing
         print(f"Execution time with single thread: {end_time - start_time:.6f} seconds")
 
         return start_index
 
+    def _get_data(self, file: File, compressed: bool = False, passphrase: str = None):
+        if compressed and passphrase:
+            return file.compress_encrypt(passphrase)
+        elif passphrase:
+            return file.encrypt(passphrase)
+        elif compressed:
+            return file.compressed_data
+        return file.raw_data
+
+    def get_header_blocks(self, samples: List[int]) -> dict:
+        try:
+            quality = self.header.get_quality_from_embedded_data(samples)
+            start_index = self.header.magic_str_index(quality)
+            return self.header.extract_header_blocks(samples, quality, start_index)
+        except ValueError:
+            return None
+
     def extract_data(self, samples: List[int]) -> List:
-        quality = self.header.extract_magic_string(samples)
+        start_time = time.time()  # Start timing
+        quality = self.header.get_quality_from_embedded_data(samples)
         start_index = self.header.magic_str_index(quality)
         blocks = self.header.extract_header_blocks(samples, quality, start_index)
         sizes = File.arr_file_sizes(blocks["EMBEDDED_SIZES"])
@@ -158,6 +257,8 @@ class LSBSteganography:
             data = self._extract_data(samples, quality, start_index, sizes[i])
             results.append((filenames[i], data))
             start_index = start_index + sizes[i]
+        end_time = time.time()  # End timing
+        print(f"Execution time: {end_time - start_time:.6f} seconds")
         return results
 
     def _extract_data(self, samples: List[int], quality, start_index, end_index):
@@ -167,10 +268,8 @@ class LSBSteganography:
             extracted_bits = samples[i] & ((1 << lsb) - 1)
             bits.append(format(extracted_bits, f"0{lsb}b"))
 
-        # Kết nối tất cả các bits lại thành chuỗi
         bits_str = "".join(bits)
 
-        # Chuyển đổi chuỗi các bits thành bytes
         data_bytes = bytearray()
         for i in range(0, len(bits_str), 8):
             byte = bits_str[i : i + 8]
