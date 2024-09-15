@@ -1,18 +1,28 @@
 import time
 from typing import Dict, List
 import threading
+
+from cover_file.exceptions import (
+    DataCorruptedError,
+    RequirePasswordError,
+    RunOutOfFreeSpaceError,
+    WrongPasswordError,
+)
 from .file import File
 from .header import LsbHeader
+from CipherNest import settings
 
 
 class LSBSteganography:
     def __init__(self):
+        self.secret_key = settings.SECRET_KEY
         self.qualities = {"low": 4, "medium": 2, "high": 1, "very_low": 8}
         self.header = LsbHeader(
             magic_string="CipherNest",
             version="1.0",
             qualities=self.qualities,
             block_delimiter="BLK",
+            secret_key=self.secret_key,
         )
 
     def extract_header_blocks(
@@ -125,7 +135,7 @@ class LSBSteganography:
             compressed=compressed,
             passphrase=passphrase,
         ):
-            raise MemoryError("Not enough free space")
+            raise RunOutOfFreeSpaceError()
 
         header = self.header.make_header(
             LsbHeader.Props(
@@ -236,13 +246,23 @@ class LSBSteganography:
             return file.compressed_data
         return file.raw_data
 
-    def get_header_blocks(self, samples: List[int]) -> dict:
-        try:
-            quality = self.header.get_quality_from_embedded_data(samples)
-            start_index = self.header.magic_str_index(quality)
-            return self.header.extract_header_blocks(samples, quality, start_index)
-        except ValueError:
+    def get_header_blocks(self, samples: List[int], passphrase: str = None) -> dict:
+        quality = self.header.get_quality_from_embedded_data(
+            samples, raise_exception=False
+        )
+        if not quality:
             return None
+        start_index = self.header.magic_str_index(quality)
+        header_blocks = self.header.extract_header_blocks(samples, quality, start_index)
+        is_encrypted = header_blocks["EF"] == "1"
+        if is_encrypted and passphrase is None:
+            raise RequirePasswordError()
+        passphrase = passphrase or self.secret_key
+        if self.header.verify_hmac(key=passphrase, header_blocks=header_blocks) is True:
+            return header_blocks
+        if is_encrypted:
+            raise WrongPasswordError()
+        raise DataCorruptedError()
 
     def extract_data(self, samples: List[int]) -> List:
         start_time = time.time()  # Start timing

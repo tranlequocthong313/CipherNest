@@ -12,6 +12,7 @@ class CoverUploadSerializer(serializers.Serializer):
             ("high", "HIGH"),
         ]
     )
+    password = serializers.CharField(required=False, default=None)
     secret_files = serializers.ListField(
         child=serializers.FileField(), required=False, allow_empty=True
     )
