@@ -8,6 +8,7 @@ from cover_file.exceptions import (
     RunOutOfFreeSpaceError,
     WrongPasswordError,
 )
+from lsb.models import ExtractedDataResponse
 from .file import File
 from .header import LsbHeader
 from CipherNest import settings
@@ -264,22 +265,39 @@ class LSBSteganography:
             raise WrongPasswordError()
         raise DataCorruptedError()
 
-    def extract_data(self, samples: List[int]) -> List:
+    def extract_data(self, samples: List[int], passphrase: str = None) -> ExtractedDataResponse:
         start_time = time.time()  # Start timing
+        
         quality = self.header.get_quality_from_embedded_data(samples)
         start_index = self.header.magic_str_index(quality)
         blocks = self.header.extract_header_blocks(samples, quality, start_index)
+
+        true, false = "1", "0"
+        ef = blocks["EF"] is true
+        if ef and passphrase is None:
+            raise WrongPasswordError()
+        
+        passphrase = passphrase or self.secret_key
+        if not self.header.verify_hmac(passphrase, blocks):
+            if ef:
+                raise WrongPasswordError()
+            else:
+                raise DataCorruptedError()
+
         sizes = File.arr_file_sizes(blocks["EMBEDDED_SIZES"])
         filenames = File.arr_filenames(blocks["FILENAMES"])
         start_index = blocks["index"]
-        results = []
+        
+        extracted_files = []
         for i in range(min(len(sizes), len(filenames))):
             data = self._extract_data(samples, quality, start_index, sizes[i])
-            results.append((filenames[i], data))
+            extracted_files.append((filenames[i], data))
             start_index = start_index + sizes[i]
-        end_time = time.time()  # End timing
+
+        end_time = time.time()
         print(f"Execution time: {end_time - start_time:.6f} seconds")
-        return results
+
+        return ExtractedDataResponse(metadata=blocks, extracted_files=extracted_files)
 
     def _extract_data(self, samples: List[int], quality, start_index, end_index):
         lsb = self.qualities[quality]

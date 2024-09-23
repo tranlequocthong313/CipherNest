@@ -1,5 +1,6 @@
+from typing import Optional
 import zlib
-
+import io
 
 class CoDec:
     def compress_data(self, data: bytes) -> bytes:
@@ -7,3 +8,4 @@ class CoDec:
 
     def decompress_data(self, compressed_data: bytes) -> bytes:
         return zlib.decompress(compressed_data)
+

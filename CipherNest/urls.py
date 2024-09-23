@@ -20,5 +20,6 @@ from django.urls import path, include
 
 urlpatterns = [
     path("", include("cover_file.urls")),
+    path("", include("embedded_file.urls")),
     path("admin/", admin.site.urls),
 ]
