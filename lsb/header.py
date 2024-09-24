@@ -1,8 +1,6 @@
 from typing import Dict, List, Tuple
 import threading
 
-from rest_framework.serializers import raise_errors_on_nested_writes
-
 from cover_file.exceptions import NotEmbeddedBySystemError
 from .file import File
 import hmac

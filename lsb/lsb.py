@@ -34,27 +34,6 @@ class LSBSteganography:
     def get_free_space(
         self,
         samples: List[int],
-        quality: str = "medium",
-        compressed: bool = False,
-        passphrase: str = None,
-    ) -> int:
-        if quality not in self.qualities:
-            raise ValueError(f"Invalid quality {quality}")
-        bits_per_sample = self.qualities[quality]
-
-        total_samples = len(samples)
-        return ((total_samples * bits_per_sample) // 8) - self.header.length(
-            LsbHeader.Props(
-                secret_files=[],
-                quality=quality,
-                compressed=compressed,
-                passphrase=passphrase,
-            )
-        )
-
-    def get_free_space_left_with_header(
-        self,
-        samples: List[int],
         secret_files: List[File],
         quality: str = "medium",
         compressed: bool = False,
@@ -65,7 +44,7 @@ class LSBSteganography:
         bits_per_sample = self.qualities[quality]
 
         total_samples = len(samples)
-        return ((total_samples * bits_per_sample) // 8) - self.header.length(
+        header_length = self.header.length(
             LsbHeader.Props(
                 secret_files=secret_files,
                 quality=quality,
@@ -73,31 +52,9 @@ class LSBSteganography:
                 passphrase=passphrase,
             )
         )
-
-    def get_free_space_left_with_secret_files(
-        self,
-        samples: List[int],
-        secret_files: List[File],
-        quality: str = "medium",
-        compressed: bool = False,
-        passphrase: str = None,
-    ) -> int:
-        if quality not in self.qualities:
-            raise ValueError(f"Invalid quality {quality}")
-        bits_per_sample = self.qualities[quality]
-
-        total_samples = len(samples)
+        total_secret_file_size = File.total_size(files=secret_files)
         return (
-            ((total_samples * bits_per_sample) // 8)
-            - self.header.length(
-                LsbHeader.Props(
-                    secret_files=secret_files,
-                    quality=quality,
-                    compressed=compressed,
-                    passphrase=passphrase,
-                )
-            )
-            - File.total_size(files=secret_files)
+            ((total_samples * bits_per_sample) // 8) - header_length - total_secret_file_size
         )
 
     def is_embedded(self, samples: List[int]) -> bool:
@@ -106,12 +63,6 @@ class LSBSteganography:
         except ValueError:
             return False
 
-    def extract_secrets(self):
-        pass
-
-    def needs_password(self) -> bool:
-        pass
-
     def embed(
         self,
         samples: List[int],
@@ -119,8 +70,8 @@ class LSBSteganography:
         quality: str = "medium",
         compressed: bool = False,
         passphrase: str = None,
-    ) -> List[int]:
-        free_space = self.get_free_space_left_with_secret_files(
+    ):
+        free_space = self.get_free_space(
             samples=samples,
             secret_files=secret_files,
             quality=quality,
@@ -129,13 +80,7 @@ class LSBSteganography:
         )
         lsb = self.qualities[quality]
 
-        if not File.embeddable(
-            files=secret_files,
-            free_space=free_space,
-            num_bits=lsb,
-            compressed=compressed,
-            passphrase=passphrase,
-        ):
+        if free_space < 0:
             raise RunOutOfFreeSpaceError()
 
         header = self.header.make_header(
@@ -157,8 +102,6 @@ class LSBSteganography:
             compressed=compressed,
             passphrase=passphrase,
         )
-
-        return samples
 
     def embed_data(
         self, samples: List[int], data: bytes, lsb: int, start_index=0

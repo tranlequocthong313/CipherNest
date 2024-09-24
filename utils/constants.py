@@ -11,3 +11,17 @@ class Code(Enum):
     REQUIRE_PASSWORD = "05"
     WRONG_PASSWORD = "06"
     DATA_CORRUPTED = "07"
+
+
+class Algorithm(Enum):
+    LSB = "lsb"
+    ECHO_HIDING = "echo_hiding"
+    AMPLITUDE_ENCODING = "echo_hiding"
+    SPREAD_SPECTRUM = "spread_spectrum"
+
+OUTPUT_QUALITY=[
+    ("very_low", "VERY_LOW"),
+    ("low", "LOW"),
+    ("medium", "MEDIUM"),
+    ("high", "HIGH"),
+]

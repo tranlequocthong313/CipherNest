@@ -1,17 +1,12 @@
 from rest_framework import serializers
 
+from utils.constants import OUTPUT_QUALITY
+
 
 class CoverUploadSerializer(serializers.Serializer):
     cover_file = serializers.FileField()
     compressed = serializers.BooleanField(required=False, default=False)
-    output_quality = serializers.ChoiceField(
-        choices=[
-            ("very_low", "VERY_LOW"),
-            ("low", "LOW"),
-            ("medium", "MEDIUM"),
-            ("high", "HIGH"),
-        ]
-    )
+    output_quality = serializers.ChoiceField(choices=OUTPUT_QUALITY)
     password = serializers.CharField(required=False, default=None)
     secret_files = serializers.ListField(
         child=serializers.FileField(), required=False, allow_empty=True
@@ -27,3 +22,6 @@ class CoverUploadSerializer(serializers.Serializer):
             )
 
         return value
+
+class EmbedSerializer(CoverUploadSerializer):
+    algorithm = serializers.CharField(required=False, default=None)

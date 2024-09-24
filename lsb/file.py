@@ -90,22 +90,6 @@ class File:
     def arr_file_sizes(sizesStr: str, delimiter: str = "/") -> List[int]:
         return [int(size) for size in sizesStr.split(delimiter)]
 
-    @staticmethod
-    def embeddable(
-        files: List["File"],
-        free_space: int,
-        num_bits: int = 2,
-        compressed: bool = False,
-        passphrase: str = None,
-    ) -> bool:
-        return all(
-            file.estimate_embedded_size(
-                num_bits=num_bits, compressed=compressed, passphrase=passphrase
-            )
-            <= free_space
-            for file in files
-        )
-
     def embedded_size(self, num_bits: int = 2) -> int:
         bits = 8
         return self.size * (bits // num_bits)
