@@ -1,10 +1,11 @@
 from typing import Dict, List, Tuple
 import threading
 
-from cover_file.exceptions import NotEmbeddedBySystemError
+from utils.exceptions import NotEmbeddedBySystemError
 from .file import File
 import hmac
 import hashlib
+import re
 
 
 """
@@ -32,7 +33,7 @@ class LsbHeader:
     class Props:
         def __init__(
             self,
-            secret_files: File,
+            secret_files: list[File],
             quality: str = "medium",
             compressed: bool = False,
             passphrase: str = None,
@@ -63,20 +64,24 @@ class LsbHeader:
             "EMBEDDED_SIZES",
             "HMAC",
         ]
+        self.full_block_names = ["MAGIC_STRING", *self.block_names]
 
     def length(self, props: Props) -> int:
         return len(self.make_header(props))
 
     def make_header(self, props: Props) -> str:
         quality = props.quality
+        secret_files = props.secret_files
         if quality not in self.qualities:
             raise ValueError(f"Invalid quality {quality}")
+        if secret_files and isinstance(secret_files, list) is False:
+            raise ValueError("Secret files must be array or None")
 
         passphrase = props.passphrase
         compressed = props.compressed
         secret_files = props.secret_files
-        filenames_bytes = File.filenames(secret_files).encode()
-        file_sizes_bytes = File.embedded_size_str(
+        filenames_bytes = File.filenames_with_delimiter(secret_files).encode()
+        file_sizes_bytes = File.embedded_sizes_with_delimiter(
             files=secret_files,
             num_bits=self.qualities[quality],
             compressed=compressed,
@@ -107,12 +112,17 @@ class LsbHeader:
         )
         header_blocks.append(version_block)
         checksum_blocks = [cf_flag.encode(), ef_flag.encode(), self.VERSION]
-        self._extracted_from_make_header_48(
-            filenames_bytes, header_blocks, checksum_blocks
-        )
-        self._extracted_from_make_header_48(
-            file_sizes_bytes, header_blocks, checksum_blocks
-        )
+
+        # Add FILENAMES block
+        filenames_block = str(len(filenames_bytes)).encode() + self.block_delimiter + filenames_bytes
+        header_blocks.append(filenames_block)
+        checksum_blocks.append(filenames_bytes)
+
+        # Add FILESIZES block
+        file_sizes_block = str(len(file_sizes_bytes)).encode() + self.block_delimiter + file_sizes_bytes
+        header_blocks.append(file_sizes_block)
+        checksum_blocks.append(file_sizes_bytes)
+
         checksum_data = b"".join(checksum_blocks)
 
         hmac_key = passphrase.encode() if passphrase else self.secret_key.encode()
@@ -123,12 +133,6 @@ class LsbHeader:
         header_blocks.append(hmac_block)
 
         return b"".join(header_blocks)
-
-    def _extracted_from_make_header_48(self, arg0, header_blocks, checksum_blocks):
-        # Add FILENAMES block
-        filenames_block = str(len(arg0)).encode() + self.block_delimiter + arg0
-        header_blocks.append(filenames_block)
-        checksum_blocks.append(arg0)
 
     def verify_hmac(
         self,
@@ -176,6 +180,9 @@ class LsbHeader:
     ):
         lsb = self.qualities[quality]
         end_magic_str_index = self.magic_str_index(quality)
+
+        if end_magic_str_index > len(samples):
+            return
 
         bits = ""
         for i in range(end_magic_str_index):
@@ -254,3 +261,48 @@ class LsbHeader:
     def magic_str_index(self, quality: str) -> int:
         lsb = self.qualities[quality]
         return len(self.MAGIC_STRING) * 8 // lsb
+
+    def extract_header_blocks_from_header_bytes(self, header: bytes):
+        blocks = {}
+        current_index = 0
+
+        if header.startswith(self.MAGIC_STRING):
+            blocks["MAGIC_STRING"] = self.MAGIC_STRING.decode()  
+            current_index = len(self.MAGIC_STRING)
+        else:
+            raise ValueError("Invalid header: MAGIC_STRING 'CIPHERNEST' not found")
+
+        total_blocks = len(self.full_block_names)
+        block_idx = 1
+
+        while block_idx < total_blocks:
+            delimiter_index = header.find(self.block_delimiter, current_index)
+
+            if delimiter_index == -1:
+                raise ValueError(f"Delimiter '{self.block_delimiter.decode()}' not found")
+
+            length_str = header[current_index:delimiter_index].decode()  
+            try:
+                length = int(length_str)
+            except ValueError:
+                raise ValueError(f"Invalid length '{length_str}' for block '{self.full_block_names[block_idx]}'")
+
+            current_index = delimiter_index + len(self.block_delimiter)
+
+            data = header[current_index:current_index + length]
+
+            try:
+                if self.full_block_names[block_idx] == "HMAC":
+                    blocks[self.full_block_names[block_idx]] = bytes(data)
+                else:
+                    blocks[self.full_block_names[block_idx]] = data.decode(
+                        "utf-8", errors="ignore"
+                    )
+            except Exception as e:
+                print(f"Error decoding block: {e}")
+
+            current_index += length
+            block_idx += 1
+
+
+        return blocks

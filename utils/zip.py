@@ -2,13 +2,13 @@ from typing import Optional
 import zipfile
 import io
 
-from cover_file.exceptions import RequirePasswordError
+from utils.exceptions import RequirePasswordError
 from lsb.file import File
-from lsb.models import ExtractedDataResponse
+from lsb.models import ExtractedPayload
 from CipherNest.settings import SECRET_KEY
 
 class Zip:
-    def create_zip(self, response_data: ExtractedDataResponse, password: Optional[str] = None) -> bytes:
+    def create_zip(self, response_data: ExtractedPayload, password: Optional[str] = None) -> io.BytesIO:
         use_user_password = response_data.is_encrypted()
         use_compression = response_data.is_compressed()
 

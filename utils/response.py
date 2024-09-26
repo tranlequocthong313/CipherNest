@@ -4,7 +4,7 @@ from rest_framework.serializers import ValidationError
 from rest_framework.views import exception_handler
 from rest_framework.response import Response
 
-from cover_file.exceptions import BaseCustomException
+from utils.exceptions import BaseCustomException
 from utils.constants import Code
 
 
@@ -32,8 +32,16 @@ def custom_exception_handler(exc: Any, context: Any = None):
             status=status.HTTP_400_BAD_REQUEST,
         )
 
-    return response
+    if response is None:
+        return Response(
+            {
+                "code": Code.INTERNAL_SERVER_ERROR.value,
+                "message": "Internal server error",
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
+    return response
 
 def standard_response(code: int, message: str, data=None, status=200):
     response = {

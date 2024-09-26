@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Tuple
 
-class ExtractedDataResponse:
+class ExtractedPayload:
     def __init__(self, metadata: Dict[str, Any], extracted_files: List[Tuple[str, bytes]]):
         self.metadata = metadata  
         self.extracted_files = extracted_files  
@@ -15,7 +15,7 @@ class ExtractedDataResponse:
 
     def get_version(self) -> str:
         version_block = self.metadata.get("VERSION")
-        return version_block if version_block else "Unknown"
+        return version_block if version_block else None
 
     def get_filenames(self) -> List[str]:
         filenames_block = self.metadata.get("FILENAMES")
@@ -27,9 +27,4 @@ class ExtractedDataResponse:
 
     def get_hmac(self) -> str:
         hmac_block = self.metadata.get("HMAC")
-        return hmac_block if hmac_block else "Unknown"
-
-    def encryption_type(self, passphrase: str = None) -> str:
-        if self.is_encrypted():
-            return "user_password" if passphrase else "system_password"
-        return "not_encrypted"
+        return hmac_block if hmac_block else None

@@ -40,22 +40,17 @@ class File:
         return self._compressed_size
 
     @staticmethod
-    def filenames(files: List["File"], delimiter: str = "/") -> List[str]:
+    def filenames_with_delimiter(files: List["File"], delimiter: str = "/") -> List[str]:
         file_names = [file.name for file in files]
         return delimiter.join(file_names)
 
     @staticmethod
-    def file_sizes(files: List["File"], delimiter: str = "/") -> List[str]:
+    def file_sizes_with_delimiter(files: List["File"], delimiter: str = "/") -> List[str]:
         sizes = [str(file.size) for file in files]
         return delimiter.join(sizes)
 
     @staticmethod
-    def compressed_file_sizes(files: List["File"], delimiter: str = "/") -> List[str]:
-        sizes = [str(file.compressed_size) for file in files]
-        return delimiter.join(sizes)
-
-    @staticmethod
-    def embedded_size_str(
+    def embedded_sizes_with_delimiter(
         files: List["File"],
         num_bits: int = 2,
         delimiter: str = "/",
@@ -64,7 +59,7 @@ class File:
     ) -> List[str]:
         sizes = [
             str(
-                File.proc_estimate_embedded_size(
+                File.estimate_embedded_size_handler(
                     passphrase=passphrase,
                     data=file.compressed_data if compressed else file.raw_data,
                     num_bits=num_bits,
@@ -75,19 +70,11 @@ class File:
         return delimiter.join(sizes)
 
     @staticmethod
-    def embedded_compressed_size_str(
-        files: List["File"], num_bits: int = 2, delimiter: str = "/"
-    ) -> List[str]:
-        bits = 8
-        sizes = [str(file.compressed_size * bits // num_bits) for file in files]
-        return delimiter.join(sizes)
-
-    @staticmethod
-    def arr_filenames(filenamesStr: str, delimiter: str = "/") -> List[str]:
+    def str_filenames_to_array(filenamesStr: str, delimiter: str = "/") -> List[str]:
         return filenamesStr.split(delimiter)
 
     @staticmethod
-    def arr_file_sizes(sizesStr: str, delimiter: str = "/") -> List[int]:
+    def str_sizes_to_array(sizesStr: str, delimiter: str = "/") -> List[int]:
         return [int(size) for size in sizesStr.split(delimiter)]
 
     def embedded_size(self, num_bits: int = 2) -> int:
@@ -118,14 +105,14 @@ class File:
     def estimate_embedded_size(
         self, num_bits: int = 2, compressed: bool = False, passphrase: str = None
     ) -> int:
-        return File.proc_estimate_embedded_size(
+        return File.estimate_embedded_size_handler(
             data=self.compressed_data if compressed else self.raw_data,
             passphrase=passphrase,
             num_bits=num_bits,
         )
 
     @staticmethod
-    def proc_estimate_embedded_size(
+    def estimate_embedded_size_handler(
         data: bytes,
         passphrase: str = None,
         num_bits: int = 2,

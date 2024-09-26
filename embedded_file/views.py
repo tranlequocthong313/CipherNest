@@ -1,7 +1,6 @@
-from django.http import FileResponse, HttpResponse, JsonResponse
+from django.http import HttpResponse 
 from rest_framework.views import APIView
 import datetime
-from celery.result import AsyncResult
 from rest_framework.views import APIView
 
 from utils.format import file_extension

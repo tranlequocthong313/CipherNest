@@ -2,13 +2,13 @@ import time
 from typing import Dict, List
 import threading
 
-from cover_file.exceptions import (
+from utils.exceptions import (
     DataCorruptedError,
     RequirePasswordError,
     RunOutOfFreeSpaceError,
     WrongPasswordError,
 )
-from lsb.models import ExtractedDataResponse
+from lsb.models import ExtractedPayload
 from .file import File
 from .header import LsbHeader
 from CipherNest import settings
@@ -25,11 +25,6 @@ class LSBSteganography:
             block_delimiter="BLK",
             secret_key=self.secret_key,
         )
-
-    def extract_header_blocks(
-        self, header_data: str
-    ) -> Dict[str, str | List[str | int]]:
-        return self.header.extract_header_blocks(header_data)
 
     def get_free_space(
         self,
@@ -209,7 +204,7 @@ class LSBSteganography:
             raise WrongPasswordError()
         raise DataCorruptedError()
 
-    def extract_data(self, samples: List[int], passphrase: str = None) -> ExtractedDataResponse:
+    def extract_data(self, samples: List[int], passphrase: str = None) -> ExtractedPayload:
         start_time = time.time()  # Start timing
         
         quality = self.header.get_quality_from_embedded_data(samples)
@@ -219,7 +214,7 @@ class LSBSteganography:
         true, false = "1", "0"
         ef = blocks["EF"] is true
         if ef and passphrase is None:
-            raise WrongPasswordError()
+            raise RequirePasswordError()
         
         passphrase = passphrase or self.secret_key
         if not self.header.verify_hmac(passphrase, blocks):
@@ -228,8 +223,8 @@ class LSBSteganography:
             else:
                 raise DataCorruptedError()
 
-        sizes = File.arr_file_sizes(blocks["EMBEDDED_SIZES"])
-        filenames = File.arr_filenames(blocks["FILENAMES"])
+        sizes = File.str_sizes_to_array(blocks["EMBEDDED_SIZES"])
+        filenames = File.str_filenames_to_array(blocks["FILENAMES"])
         start_index = blocks["index"]
         
         extracted_files = []
@@ -241,7 +236,7 @@ class LSBSteganography:
         end_time = time.time()
         print(f"Execution time: {end_time - start_time:.6f} seconds")
 
-        return ExtractedDataResponse(metadata=blocks, extracted_files=extracted_files)
+        return ExtractedPayload(metadata=blocks, extracted_files=extracted_files)
 
     def _extract_data(self, samples: List[int], quality, start_index, end_index):
         lsb = self.qualities[quality]

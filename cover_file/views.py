@@ -2,7 +2,7 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework import status
 
-from cover_file.exceptions import (
+from utils.exceptions import (
     RunOutOfFreeSpaceError,
 )
 from utils.constants import Algorithm, Code
@@ -37,8 +37,8 @@ class CoverUploadView(APIView):
         if header_blocks := self.algorithm.get_header_blocks(
             samples=samples, passphrase=password
         ):
-            sizes = File.arr_file_sizes(header_blocks["EMBEDDED_SIZES"])
-            filenames = File.arr_filenames(header_blocks["FILENAMES"])
+            sizes = File.str_sizes_to_array(header_blocks["EMBEDDED_SIZES"])
+            filenames = File.str_filenames_to_array(header_blocks["FILENAMES"])
             version = header_blocks["VERSION"]
             return standard_response(
                 code=Code.IS_EMBEDDED_BY_SYSTEM.value,
