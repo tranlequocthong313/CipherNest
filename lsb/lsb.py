@@ -1,5 +1,5 @@
 import time
-from typing import Dict, List
+from typing import List
 import threading
 
 from utils.exceptions import (

@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "cover_file",
     "lsb",
+    "embedded_file"
 ]
 
 MIDDLEWARE = [
@@ -146,38 +147,4 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_EXPOSE_HEADERS = [
     'Content-Disposition',
 ]
-
-LOGGING = {
-    "version": 1,
-    "disable_existing_loggers": False,
-    "formatters": {
-        "standard": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"},
-    },
-    "handlers": {
-        "console": {
-            "level": "INFO",
-            "class": "logging.StreamHandler",
-            "formatter": "standard",
-            "filters": [],
-        },
-    },
-    "loggers": {
-        logger_name: {"level": "WARNING", "propagate": True}
-        for logger_name in (
-            "django",
-            "django.request",
-            "django.db.backends",
-            "django.template",
-        )
-    },
-    "root": {"level": "DEBUG", "handlers": ["console"]},
-}
-
-LOGGING["formatters"]["colored"] = {
-    "()": "colorlog.ColoredFormatter",
-    "format": "%(log_color)s%(asctime)s %(levelname)s %(name)s %(bold_white)s%(message)s",
-}
-LOGGING["handlers"]["console"]["level"] = "DEBUG"
-LOGGING["handlers"]["console"]["formatter"] = "colored"
-
 
