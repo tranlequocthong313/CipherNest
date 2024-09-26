@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from utils.constants import OUTPUT_QUALITY
+from utils.constants import EXTENSIONS_OF_SUPPORTED_FILE_FORMATS, OUTPUT_QUALITY
 
 
 class CoverUploadSerializer(serializers.Serializer):
@@ -13,12 +13,12 @@ class CoverUploadSerializer(serializers.Serializer):
     )
 
     def validate_cover_file(self, value):
-        valid_extensions = ["wav", "mp3", "flac"]
+        valid_extensions = EXTENSIONS_OF_SUPPORTED_FILE_FORMATS
         extension = value.name.split(".")[-1].lower()
 
         if extension not in valid_extensions:
             raise serializers.ValidationError(
-                "Unsupported file extension for cover file. Allowed types are: wav, mp3, flac."
+                "Unsupported file extension for cover file. Allowed types are: wav, mp3, flac, aiff."
             )
 
         return value

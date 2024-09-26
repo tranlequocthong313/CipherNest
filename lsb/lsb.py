@@ -198,6 +198,7 @@ class LSBSteganography:
             return None
         start_index = self.header.magic_str_index(quality)
         header_blocks = self.header.extract_header_blocks(samples, quality, start_index)
+        print('HEADER BLOCKS:::', header_blocks)
         is_encrypted = header_blocks["EF"] == "1"
         if is_encrypted and passphrase is None:
             raise RequirePasswordError()

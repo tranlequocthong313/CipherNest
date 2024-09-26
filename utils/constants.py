@@ -15,9 +15,6 @@ class Code(Enum):
 
 class Algorithm(Enum):
     LSB = "lsb"
-    ECHO_HIDING = "echo_hiding"
-    AMPLITUDE_ENCODING = "echo_hiding"
-    SPREAD_SPECTRUM = "spread_spectrum"
 
 OUTPUT_QUALITY=[
     ("very_low", "VERY_LOW"),
@@ -25,3 +22,5 @@ OUTPUT_QUALITY=[
     ("medium", "MEDIUM"),
     ("high", "HIGH"),
 ]
+
+EXTENSIONS_OF_SUPPORTED_FILE_FORMATS = ["wav", "flac", "aiff"]

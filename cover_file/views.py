@@ -7,6 +7,7 @@ from cover_file.exceptions import (
 )
 from utils.constants import Algorithm, Code
 from lsb.file import File
+from utils.format import file_extension
 from utils.response import standard_response
 from .serializers import CoverUploadSerializer, EmbedSerializer
 from lsb.lsb import LSBSteganography
@@ -29,7 +30,7 @@ class CoverUploadView(APIView):
         password = serializer.validated_data.get("password")
 
         file_bytes = cover_file.read()
-        audio = AudioSegment.from_file(io.BytesIO(file_bytes), format="wav")
+        audio = AudioSegment.from_file(io.BytesIO(file_bytes), format=file_extension(cover_file))
 
         samples = audio.get_array_of_samples()
 
@@ -94,7 +95,7 @@ class EmbedView(APIView):
         password = serializer.validated_data.get("password")
 
         file_bytes = cover_file.read()
-        audio = AudioSegment.from_file(io.BytesIO(file_bytes), format="wav")
+        audio = AudioSegment.from_file(io.BytesIO(file_bytes), format=file_extension(cover_file))
 
         samples = audio.get_array_of_samples()
 
@@ -120,7 +121,7 @@ class EmbedView(APIView):
         embedded_audio = audio._spawn(samples.tobytes())
 
         buffer = io.BytesIO()
-        embedded_audio.export(buffer, format="wav")
+        embedded_audio.export(buffer, format=file_extension(cover_file))
         buffer.seek(0)  
 
         resp = HttpResponse(buffer, content_type='audio/wav')

@@ -4,6 +4,7 @@ import datetime
 from celery.result import AsyncResult
 from rest_framework.views import APIView
 
+from utils.format import file_extension
 from utils.zip import Zip
 from .serializers import EmbeddedFileUploadSerializer
 from lsb.lsb import LSBSteganography
@@ -24,7 +25,7 @@ class EmbeddedUploadView(APIView):
         password = serializer.validated_data.get("password")
 
         file_bytes = embedded_file.read()
-        audio = AudioSegment.from_file(io.BytesIO(file_bytes), format="wav")
+        audio = AudioSegment.from_file(io.BytesIO(file_bytes), format=file_extension(embedded_file))
 
         samples = audio.get_array_of_samples()
 
