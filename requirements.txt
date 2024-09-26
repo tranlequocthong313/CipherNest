@@ -1,11 +1,16 @@
 asgiref==3.8.1
 cffi==1.17.1
+click==8.1.7
 cryptography==43.0.1
 Django==5.1.1
 django-cors-headers==4.4.0
 djangorestframework==3.15.2
+gunicorn==23.0.0
+h11==0.14.0
+packaging==24.1
 pycparser==2.22
 pydub==0.25.1
 python-dotenv==1.0.1
 sqlparse==0.5.1
 typing_extensions==4.12.2
+uvicorn==0.30.6
