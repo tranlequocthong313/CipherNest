@@ -5,7 +5,6 @@ from utils.exceptions import NotEmbeddedBySystemError
 from .file import File
 import hmac
 import hashlib
-import re
 
 
 """

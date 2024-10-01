@@ -25,3 +25,6 @@ class CoverUploadSerializer(serializers.Serializer):
 
 class EmbedSerializer(CoverUploadSerializer):
     algorithm = serializers.CharField(required=False, default=None)
+    secret_files = serializers.ListField(
+        child=serializers.FileField(), required=True, allow_empty=False
+    )
